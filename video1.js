@@ -1,30 +1,428 @@
-let videoData = [
-    {
-       url: 'https://javct.net/v/start-245-rm',
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Gallery</title>
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #f5f5f5; color: #222; margin: 0; padding: 20px; text-align: center; }
+        h1 { font-size: 2em; margin-bottom: 20px; }
+        .search-bar, .category-btn, .refresh-btn { padding: 12px; font-size: 16px; margin: 5px;  border: none; border-radius: 25px; outline: none;}
+        .search-bar { width: 90%; }
+        .category-btn { width: 60%; }
+        .refresh-btn { width: 31%; margin-bottom: 20px; }
+        .category-btn, .refresh-btn { background:  #2bb54b; color: white; cursor: pointer; }
+        .refresh-btn:hover { background: #218838; }
+        .gallery { display: flex; flex-direction: column; align-items: center; gap: 15px; padding: 10px; }
+        .video { background: white; padding: 10px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); width: 100%; max-width: 450px; text-align: left; display: none; flex-direction: column; cursor: pointer; margin-bottom: 0px; }
+        .video img { width: 100%; height: auto; border-radius: 8px; cursor: pointer; }
+        .video-title { font-size: 16px; font-weight: bold; color: #333; margin-top: 8px;}
+        .video {position: relative;}
+        .pagination { margin-top: 15px; }
+        .page-btn { padding: 8px 12px; margin: 5px; margin-bottom: 100px; border: none; background: #007bff; color: white; border-radius: 20px; cursor: pointer; }
+        .page-btn:disabled { background: #ccc; cursor: not-allowed; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 1000;}
+        .modal-content { background: white; padding: 0px; border-radius: 10px; text-align: center; max-width: 500px; width: 95%; height: 600px; overflow-y: auto;}
+        .category-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 6px; }
+        .category-item { cursor: pointer; text-align: center; }
+        .category-item img { width: 112px; height: 171px; border-radius: 10px;border: 1px solid #7d7d7d; }
+        .category-item span { display: block; margin-top: 5px; margin-bottom: 10px; font-weight: bold; }
+        .category-name {font-weight: bold; margin-top: 5px;}
+        .category-count {color: gray; font-size: 14px; margin-top: 2px; margin-bottom: 5px;}
+        
+    </style>
+    <script>
+        let videos = [];
+        let currentPage = 1;
+        const videosPerPage = 10;
+        const bufferPages = 2; // Number of pages to load before & after current page
+        let currentCategory = ['all'];
+        
+        function searchVideos() {
+            let query = document.getElementById('search').value.toLowerCase();
+            videos.forEach(video => {
+                let title = video.dataset.title.toLowerCase();
+                let tags = video.dataset.tags.toLowerCase();
+                let videoCategories = video.dataset.category.split(',');
+                let matchesCategory = currentCategories.includes('all') || videoCategories.some(cat => currentCategories.includes(cat));
+                video.style.display = (title.includes(query) || tags.includes(query)) && matchesCategory ? 'flex' : 'none';
+            });
+        }
+        
+        function shuffleVideos() {
+            let gallery = document.querySelector('.gallery');
+            videos.sort(() => Math.random() - 0.5);
+            gallery.innerHTML = '';
+            videos.forEach(video => gallery.appendChild(video));
+        }
+
+        function shuffleCategories() {
+            let grid = document.querySelector('.category-grid');
+            let categories = Array.from(grid.children);
+            categories.sort(() => Math.random() - 0.5);
+            grid.innerHTML = '';
+            categories.forEach(category => grid.appendChild(category));
+        }
+        
+        function filterCategory(category) {
+            currentCategories = [category];
+            document.getElementById('categoryBtn').innerText = `Category - ${category}`;
+            showPage(1);
+            closeModal();
+        }
+
+        function searchCategories() {
+            const query = document.getElementById('categorySearch').value.toLowerCase();
+            const items = document.querySelectorAll('.category-item');
+            items.forEach(item => {
+                const categoryName = item.querySelector('span').innerText.toLowerCase();
+                item.style.display = categoryName.includes(query) ? 'block' : 'none';
+            });
+        }
+        
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function showPage(page) {
+            currentPage = page;
+            scrollToTop(); // Scroll to top on page change
+            let filteredVideos = videos.filter(video => {
+                let videoCategories = video.dataset.category.split(',');
+                return currentCategories.includes('all') || videoCategories.some(cat => currentCategories.includes(cat));
+            });
+            videos.forEach(video => video.style.display = 'none');
+            let start = (page - 1) * videosPerPage;
+            let end = start + videosPerPage;
+            for (let i = start; i < end && i < filteredVideos.length; i++) {
+                filteredVideos[i].style.display = 'flex';}
+    
+            // Show only videos within the buffer range
+            let minIndex = Math.max(0, start - bufferPages * videosPerPage);
+            let maxIndex = Math.min(filteredVideos.length, end + bufferPages * videosPerPage);
+            
+            for (let i = minIndex; i < maxIndex; i++) {
+                filteredVideos[i].style.display = i >= start && i < end ? 'flex' : 'none';
+            }
+            
+            document.getElementById('prevPage').disabled = page === 1;
+            document.getElementById('nextPage').disabled = end >= filteredVideos.length;
+        }
+        
+        function openModal() {
+            const modal = document.getElementById('categoryModal');
+            const grid = modal.querySelector('.category-grid');
+            const items = Array.from(grid.children);
+
+            const fixedCount = 9; // Adjust this number for how many categories you want fixed at the top
+            const fixedItems = items.slice(0, fixedCount);
+            const shuffleItems = items.slice(fixedCount);
+
+            shuffleItems.sort(() => Math.random() - 0.5);
+
+            grid.innerHTML = '';
+            fixedItems.forEach(item => grid.appendChild(item));
+            shuffleItems.forEach(item => grid.appendChild(item));
+
+            modal.style.display = 'flex';
+
+        }
+
+        function closeModal() { document.getElementById('categoryModal').style.display = 'none'; }
+        
+        function updateCategoryCounts() {
+           const categoryCounts = {};
+
+           videos.forEach(video => {
+               const categories = video.dataset.category.split(',');
+               categories.forEach(category => {
+                   if (!categoryCounts[category]) {
+                       categoryCounts[category] = 0;
+                   }
+                   categoryCounts[category]++;
+               });
+           });
+
+           Object.keys(categoryCounts).forEach(category => {
+               const countElement = document.getElementById(`count-${category}`);
+               if (countElement) {
+                   countElement.innerText = `${categoryCounts[category]} Videos`;
+               }
+           });
+   
+           const allCountElement = document.getElementById('count-all');
+           if (allCountElement) {
+               allCountElement.innerText = `${videos.length} Videos`;
+           }
+        }
+
+        function initializeGallery() {
+           videos = Array.from(document.querySelectorAll('.video'));
+           currentCategories = ['all']; // Ensure 'all' is set by default
+           document.getElementById('categoryBtn').innerText = 'Category - All';
+           filterCategory('All');
+           videos.forEach(video => video.style.display = 'flex'); // Show all videos initially
+           shuffleVideos();
+           showPage(1); // Display first page with all videos
+        }
+        
+        window.onclick = function(event) { if (event.target === document.getElementById('categoryModal')) closeModal(); }
+        window.onkeydown = function(event) { if (event.key === "Escape") closeModal(); }
+        window.onload = function () { initializeGallery(); updateCategoryCounts(); }
+        
+    </script>
+</head>
+<body>
+    <h1>Video Gallery</h1>
+    <input type="text" id="search" class="search-bar" placeholder="Search videos..." onkeyup="searchVideos()">
+    <button id="categoryBtn" class="category-btn" onclick="openModal()">Category - All</button>
+    <div id="categoryModal" class="modal">
+        <div class="modal-content">
+             <div class="modal-header" style="position: sticky; top: 0; background-color: white; z-index: 100;padding-top: 20px;">
+               <h2 style="margin: 0;">Select a Category</h2>
+               <input type="text" id="categorySearch" class="search-bar" placeholder="Search categories..." onkeyup="searchCategories()" style="border: 1px solid #ccc; padding: 10px; border-radius: 25px; width: 90%; margin-top: 10px;">
+             </div>
+            <div class="category-grid">
+                <div class="category-item" onclick="filterCategory('All')"><img src="https://lh3.googleusercontent.com/d/1-JU8l9OT2rwqrS-oX3iFcbs-C8tvQr3Y=s0" alt="All"><div class="category-name">All</div><div class="category-count" id="count-All">0 Videos</div></div>
+                <div class="category-item" onclick="filterCategory('Movies')"><img src="https://lh3.googleusercontent.com/d/1-Q4r0JOIKUVPHcwFi4vcYTde59dBmz5A=s0" alt="Movies"><div class="category-name">Movies</div><div class="category-count" id="count-Movie">0 Videos</div></div>                
+                <div class="category-item" onclick="filterCategory('Short Videos')"><img src="https://lh3.googleusercontent.com/d/11O0ynurwD1gRdF2co8SQkAENRD4MAJKG=s0" alt="Short Videos"><div class="category-name">Short Videos</div><div class="category-count" id="count-Short Videos">0 Videos</div></div>
+                <div class="category-item" onclick="filterCategory('Photo Gallery')"><img src="https://lh3.googleusercontent.com/d/11N90VFL7M_rDf9u9_Wz8nQ4gta7yxmF7=s0" alt="Photo Gallery"><div class="category-name">Photo Gallery</div><div class="category-count" id="count-Photo Gallery">0 Videos</div></div>            
+                <div class="category-item" onclick="filterCategory('JAV')"><img src="https://lh3.googleusercontent.com/d/1-Rz8Dyr82oA7Q6Y0V4-r_BmFZ-4ctXp0=s0" alt="JAV"><div class="category-name">JAV</div><div class="category-count" id="count-JAV">0 Videos</div></div>
+                <div class="category-item" onclick="filterCategory('Asian')"><img src="https://lh3.googleusercontent.com/d/1-q7Gh1RF-sYURxDXtXoETJWz5mWRykPQ=s0" alt="Asian"><div class="category-name">Asian</div><div class="category-count" id="count-Asian">0 Videos</div></div>
+                <div class="category-item" onclick="filterCategory('Animated')"><img src="https://lh3.googleusercontent.com/d/108ZjiiyMT1U1WGk1-xUsz67qQfP8iJ6z=s0" alt="Animated"><div class="category-name">Animated</div><div class="category-count" id="count-Animated">0 Videos</div></div>
+                <div class="category-item" onclick="filterCategory('Regular')"><img src="https://lh3.googleusercontent.com/d/1-wGK-TJkdjm1txLvFnSI7NH30u6E1S21=s0" alt="Regular"><div class="category-name">Regular</div><div class="category-count" id="count-Regular">0 Videos</div></div>
+                <div class="category-item" onclick="filterCategory('Desi')"><img src="https://lh3.googleusercontent.com/d/1-wErMYiW9mOia5zhaEuMyx4gsaRQLvgl=s0" alt="Desi"><div class="category-name">Desi</div><div class="category-count" id="count-Desi">0 Videos</div></div>
+
+                <div class="category-item" onclick="filterCategory('Minamo')"><img src="" alt="Minamo"><div class="category-name">Minamo</div><div class="category-count" id="count-Minamo">0 Videos</div></div>
+
+            </div>
+        </div>
+    </div>
+    <button class="refresh-btn" onclick="initializeGallery()">Shuffle</button>
+    
+   <div class="gallery"></div>
+
+<script>
+    let videoData = [
+        { //1
+            url: 'https://javct.net/v/start-245-rm',
             title: '[START-245] “Nonstop sex with MINAMO” From morning till night, continuous big dick instant insertion sex', 
-            category: 'All,JAV',
+            category: 'All,JAV,Minamo',
             tags: 'minamo', 
             thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2025/02/1start245pl.jpg', 
-    }
-];
+        },
+        { //2
+            url: 'https://javct.net/v/start-224-rm',
+            title: '[START-224] Contacting a female teacher who attacked a student! What happens to a woman’s sexual desire after 3 years of abstinence?', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2025/01/1start224pl.jpg',   
+        },
+        { //3
+            url: 'https://javct.net/v/start-208-rm',
+            title: '[START-208] The kiss-crazed men’s massage therapist gave an erotic kiss immediately after ejaculation, reviving my erection and leading to 10 consecutive ejaculations', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/12/1start208pl.jpg',   
+        },
+        { //4
+            url: 'https://javct.net/v/mbrbn-049',
+            title: 'MBRBN-049 Hot Spring Beauty/MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/11/n_709mbrbn049pl.jpg',           
+        },
+        { //5
+            url: 'https://javct.net/v/start-189-rm',
+            title: '[START-189] MINAMO Junction R18 edition 24-hour hardcore lockdown life unlimited ejaculation with sex 9 ejaculations total the most raw sex in MINAMO history', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/11/1start189pl.jpg',           
+        },
+        { //6
+            url: 'https://javct.net/v/start-158-rm',
+            title: '[START-158] Sexual Desire Relief Specialized Sex Outpatient Clinic 23 Special Edition: SODstar MINAMO, The Absolute Ace Nurse’s Beautiful Big Butt Sex Treatment', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/10/1start158pl.jpg',           
+        },
+        { //7
+            url: 'https://javct.net/v/start-148-rm',
+            title: '[START-148] While My Wife was Away Visiting Her Parents, I Had Relentless Cheating Sex for a Week with the Beautiful Teacher from My Son’s Daycare: Minamo', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/09/1start148pl.jpg',           
+        },
+        { //8
+            url: 'https://javct.net/v/start-120-rm',
+            title: '[START-120] Friday Night SEX with a Beautiful Woman Who Loves Sex and Gets Me Fucked 12 Times Until the Sun Rises MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/08/1start120pl.jpg',           
+        },
+        { //9
+            url: 'https://javct.net/v/start-107-rm',
+            title: '[START-107] MINAMO, a married career woman who was forced to drink a total of 21 loads of sperm from her boss during a hot spring business trip', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/07/1start107pl.jpg',           
+        },
+        { //10
+            url: 'https://javct.net/v/start-088-rm',
+            title: '[START-088] Seduced by a super attractive lounge girl, goes wild and has raw creampie sex inside the shop! MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/06/1start088pl.jpg',           
+        },
+        { //11
+            url: 'https://javct.net/v/start-073-rm',
+            title: '[START-073] MINAMO ZOMBIE AV DEBUT 3rd Anniversary special', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/05/1start073pl.jpg',           
+        },
+        { //12
+            url: 'https://javct.net/v/start-035-rm',
+            title: '[START-035] Lazy and Pleasant Weekend. Eating, Having Sex, Sleeping. MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/04/START035.jpg',           
+        },
+        { //13
+            url: 'https://javct.net/v/start-022-rm',
+            title: '[START-022] Date XXX. I was attacked by guys from the movie club at the same university that I trusted, and they deep throated me over again… MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/04/START-022.jpg',           
+        },
+        { //14
+            url: 'https://javct.net/v/stars-980-rm',
+            title: '[STARS-980] A part-time housewife from the convenience store is the best, even during a short 2-hour break, I cum at least 3 times. MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://pics.dmm.co.jp/mono/movie/adult/1stars980/1stars980pl.jpg',           
+        },
+        { //15
+            url: 'https://javct.net/v/stars-969-rm',
+            title: '[STARS-969] I Won’t Let My Favorite Model Minamo Hate Me. I’ll Do Whatever I Want With A Brainwashing Massage!', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/01/1stars00969pl.jpg',           
+        },
+        { //16
+            url: 'https://javct.net/v/rebd-807',
+            title: '[REBD-807] Minamo4 Angel in the Evening Calm – MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2024/01/h_346rebd807pl.jpg',           
+        },
+        { //17
+            url: 'https://javct.net/v/stars-955-rm',
+            title: '[STARS-955] The Cutest Girl in the School, Minamo, Tempts Everyone for a Creampie. I’m Her Teacher and I Might’ve Reached My Limit. MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/12/1stars955pl.jpg',           
+        },
+        { //18
+            url: 'https://javct.net/v/stars-935-rm',
+            title: '[STARS-935] (4K) At the off-party where sex-loving promiscuous men and women gather, they have orgy sex until morning! MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/11/1stars935pl.jpg',           
+        },
+        { //19
+            url: 'https://javct.net/v/stars-895-rm',
+            title: '[STARS-895] (4K) NTR During Delivery – Newlywed Wife MINAMO, who was attacked in the truck during delivery by a veteran driver', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/10/1stars895pl.jpg',           
+        },
+        { //20
+            url: 'https://javct.net/v/stars-893-rm',
+            title: '[STARS-893] The Ultimate Lingerie instinct Intercourse – MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/09/1stars893pl.jpg',           
+        },
+        { //21
+            url: 'https://javct.net/v/stars-867-rm',
+            title: '[STARS-867] After getting completely drunk at a party, I woke up in the busty senior’s house… Unable to resist the glimpses of her cleavage and panties, I attacked her – Minamo', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/08/STARS-867.jpg',           
+        },
+        { //22
+            url: 'https://javct.net/v/stars-883-rm',
+            title: '[STARS-883] SODstar Bikini Festival: All Members” “For Those Who Absolutely Want to Please Girls This Summer” Learn How to Have Sex: Complete Guide to Minamo’s Techniques.', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/07/stars_883_l.jpg',           
+        },
+        { //23
+            url: 'https://javct.net/v/stars-824-rm',
+            title: '[STARS-824] Revenge Rape of the Bullied – We’ll teach this cocky Yankee gal a lesson. MINAMO', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/06/STARS-824.jpg',           
+        },
+        { //24
+            url: 'https://javct.net/v/stars-844-rm',
+            title: '[STARS-844] A members-only soappy. MINAMO that is OK to unlimited cumshots and Creampie!', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: 'https://cdn.javsts.com/wp-content/uploads/2023/05/STARS-844.jpg',           
+        },
+        { //
+            url: '',
+            title: '', 
+            category: 'All,JAV,Minamo',
+            tags: 'minamo', 
+            thumbnail: '',           
+        },
+        { //
+            url: 'https://www.eporner.com/video-kAHjDwt4cRp/mia-khalifas-first-monster-cock-threesome/?trx=1227735290aee694b81473a256bea12420712',
+            title: 'Mia Khalifas First Monster Cock Threesome', 
+            category: 'All,Regular,Mia Khalifa',
+            tags: 'mia khalifa', 
+            thumbnail: 'https://static-eu-cdn.eporner.com/thumbs/static4/1/12/122/12298410/5_240.jpg',           
+        },
+        { // 
+            category: 'Photo Gallery',
+            thumbnail: 'https://cdni.pornpics.com/1280/7/633/26210531/26210531_027_c69c.jpg',           
+        },
+        
+    ];
 
-let gallery = document.querySelector('.gallery');
-videoData.forEach(video => {
-    let container = document.createElement('div');
-    container.className = 'video';
-    container.dataset.category = video.category;
-    container.dataset.tags = video.tags;
+    let gallery = document.querySelector('.gallery');
 
-    let img = document.createElement('img');
-    img.src = video.thumbnail;
-    img.alt = video.title;
-    img.onclick = () => openPlayer(video.url);
+    // Generate Video Thumbnails
+    videoData.forEach(video => {
+        let container = document.createElement('div');
+        container.className = 'video'; 
+        container.dataset.category = video.category;
+        container.dataset.tags = video.tags;
+        container.dataset.title = video.title;
+        
+        let img = document.createElement('img');
+        img.src = video.thumbnail;
+        img.alt = video.title;
+        img.onclick = () => window.open(video.url, "_blank");
+        
+        let title = document.createElement('span');
+        title.className = 'video-title';
+        title.textContent = video.title;
+        
+        container.appendChild(img);
+        container.appendChild(title);
+        gallery.appendChild(container);
+    });
+    
+    
+</script>
 
-    let title = document.createElement('span');
-    title.className = 'video-title';
-    title.textContent = video.title;
-
-    container.appendChild(img);
-    container.appendChild(title);
-    gallery.appendChild(container);
-});
+    <div class="pagination">
+        <button class="page-btn" id="prevPage" onclick="showPage(currentPage - 1)">Previous</button>
+        <button class="page-btn" id="nextPage" onclick="showPage(currentPage + 1)">Next</button>
+    </div>
+</body>
+</html>
